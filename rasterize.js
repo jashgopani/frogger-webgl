@@ -1,10 +1,7 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 
-/* assignment specific globals */
-const INPUT_TRIANGLES_URL = 'https://ncsucgclass.github.io/prog3/triangles.json'; // triangles file loc
-const INPUT_ELLIPSOIDS_URL = 'https://ncsucgclass.github.io/prog3/ellipsoids.json'; // ellipsoids file loc
-var defaultEye = vec3.fromValues(0, 0.6, 0.77); // default eye position in world space
-var defaultCenter = vec3.fromValues(0, 0, -0.35); // default view direction in world space
+var defaultEye = vec3.fromValues(0, 1.5, 1); // default eye position in world space
+var defaultCenter = vec3.fromValues(0, 0, -0.4); // default view direction in world space
 var defaultUp = vec3.fromValues(0, 1, 0); // default view up vector
 var rotateTheta = Math.PI / 50; // how much to rotate models by with each key press
 
@@ -178,8 +175,7 @@ function makeEllipsoid(currEllipsoid, numLongSteps) {
 
 // read models in, load them into webgl buffers
 function loadModels() {
-	const ground = { ...generateRectXZ([-0.5, 0, 0.5], 1, 1), ...theme.ground };
-	inputTriangles = [ground];
+	inputTriangles = getSceneModels();
 	try {
 		if (inputTriangles == String.null) throw 'Unable to load models!';
 		else {
@@ -648,6 +644,13 @@ function generateRectXZ([x = 0, y = 0, z = 0], w, h) {
 		vertices,
 		triangles
 	};
+}
+
+function getSceneModels() {
+	const ground = { ...generateRectXZ([-1, 0, 1], 2, 2), ...theme.ground };
+	const baseVertices = ground.vertices;
+
+	return [ground];
 }
 
 function main() {
