@@ -1,8 +1,9 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 
-var defaultEye = vec3.fromValues(0, 1.5, 1); // default eye position in world space
-var defaultCenter = vec3.fromValues(0, 0, -0.4); // default view direction in world space
+var defaultEye = vec3.fromValues(0, 1.1, 0); // default eye position in world space
+var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0, 1, 0); // default view up vector
+const fov = Math.PI * 0.5; //90 degrees
 var rotateTheta = Math.PI / 50; // how much to rotate models by with each key press
 
 /* webgl and geometry data */
@@ -43,6 +44,11 @@ const theme = {
 	ground: {
 		material: {
 			diffuse: [0.1, 0.7, 0.2]
+		}
+	},
+	road: {
+		material: {
+			diffuse: [0.25, 0.25, 0.25]
 		}
 	},
 	random: {
@@ -418,7 +424,7 @@ function renderModels() {
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
 
 	// set up projection and view
-	mat4.perspective(pMatrix, Math.PI / 2, 1, 1e-4, 1e4); // create projection matrix
+	mat4.perspective(pMatrix, fov, 1, 1e-4, 1e4); // create projection matrix
 	mat4.lookAt(vMatrix, Eye, Center, Up); // create view matrix
 	mat4.multiply(pvMatrix, pvMatrix, pMatrix); // projection
 	mat4.multiply(pvMatrix, pvMatrix, vMatrix); // projection * view
@@ -633,8 +639,8 @@ function generateRectXZ([x = 0, y = 0, z = 0], w, h) {
 	let vertices = [
 		[x, y, z],
 		[x + w, y, z],
-		[x + w, y, z - h],
-		[x, y, z - h]
+		[x + w, y, z + h],
+		[x, y, z + h]
 	];
 	let triangles = [
 		[0, 1, 2],
@@ -647,10 +653,13 @@ function generateRectXZ([x = 0, y = 0, z = 0], w, h) {
 }
 
 function getSceneModels() {
-	const ground = { ...generateRectXZ([-1, 0, 1], 2, 2), ...theme.ground };
+	const ground = { ...generateRectXZ([-1, 0, -2], 2, 2 - gridUnitSquareLen), ...theme.road };
 	const baseVertices = ground.vertices;
-
-	return [ground];
+	console.log({ baseVertices });
+	const grassStrips = [
+		{ ...generateRectXZ([-1, 0.0001, -gridUnitSquareLen], 2, gridUnitSquareLen), ...theme.default }
+	];
+	return [...grassStrips, ground];
 }
 
 function main() {
