@@ -32,13 +32,18 @@ var Eye = vec3.clone(defaultEye); // eye position in world space
 var Center = vec3.clone(defaultCenter); // view direction in world space
 var Up = vec3.clone(defaultUp); // view up vector in world space
 
-const gridDim = 12;
-let gridUnitSquareLen = 1 / gridDim;
+const noOfBlocks = 12;
+let blockLength = 1 / noOfBlocks;
 
 const theme = {
 	default: {
 		material: {
 			diffuse: [0.5, 0.5, 0.9]
+		}
+	},
+	river: {
+		material: {
+			diffuse: [0.2, 0.2, 0.9]
 		}
 	},
 	ground: {
@@ -653,13 +658,26 @@ function generateRectXZ([x = 0, y = 0, z = 0], w, h) {
 }
 
 function getSceneModels() {
-	const ground = { ...generateRectXZ([-1, 0, -2], 2, 2 - gridUnitSquareLen), ...theme.road };
+	const len = 2;
+	blockLength = len / noOfBlocks;
+	const ground = { ...generateRectXZ([-1, 0, -len], len, len - blockLength), ...theme.road };
 	const baseVertices = ground.vertices;
 	console.log({ baseVertices });
 	const grassStrips = [
-		{ ...generateRectXZ([-1, 0.0001, -gridUnitSquareLen], 2, gridUnitSquareLen), ...theme.default }
+		{ ...generateRectXZ([-1, 0.002, -blockLength], 2, blockLength), ...theme.ground },
+		{
+			...generateRectXZ([-1, 0.002, (-blockLength * noOfBlocks) / 2], 2, blockLength),
+			...theme.ground
+		},
+
+		{ ...generateRectXZ([-1, 0.002, -blockLength * noOfBlocks], 2, blockLength), ...theme.ground }
 	];
-	return [...grassStrips, ground];
+	const riverLen = 0.5 * len - blockLength;
+	const river = {
+		...generateRectXZ([-1, 0.002, -len + blockLength], 2, riverLen),
+		...theme.river
+	};
+	return [ground, ...grassStrips, river];
 }
 
 function main() {
