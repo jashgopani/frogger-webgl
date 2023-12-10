@@ -2,6 +2,8 @@
 
 var defaultEye = vec3.fromValues(0, 1.1, 0); // default eye position in world space
 var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in world space
+// var defaultEye = vec3.fromValues(0, 0.5, 0.4); // default eye position in world space
+// var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0, 1, 0); // default view up vector
 const fov = Math.PI * 0.5; //90 degrees
 var rotateTheta = Math.PI / 50; // how much to rotate models by with each key press
@@ -32,8 +34,9 @@ var Eye = vec3.clone(defaultEye); // eye position in world space
 var Center = vec3.clone(defaultCenter); // view direction in world space
 var Up = vec3.clone(defaultUp); // view up vector in world space
 
-const noOfBlocks = 12;
-let blockLength = 1 / noOfBlocks;
+const noOfBlocks = 15;
+const len = 2;
+let blockLength = len / noOfBlocks;
 
 const theme = {
 	default: {
@@ -56,10 +59,17 @@ const theme = {
 			diffuse: [0.25, 0.25, 0.25]
 		}
 	},
-	random: {
+	wood: {
 		material: {
-			diffuse: [Math.random(), Math.random(), Math.random()]
+			diffuse: [0.75, 0.45, 0.25]
 		}
+	},
+	random: () => {
+		return {
+			material: {
+				diffuse: [Math.random(), Math.random(), Math.random()]
+			}
+		};
 	}
 };
 
@@ -632,52 +642,172 @@ function handleKeyDown(event) {
 	} // end switch
 } // end handleKeyDown
 
-/**
- * Generate Rectange in XZ plane
- * @param {Array} start topleft [x,y,z] coordinate of rect
- * @param {Number} w width of rect
- * @param {Number} h height of rect
- *
- * @returns
- */
-function generateRectXZ([x = 0, y = 0, z = 0], w, h) {
-	let vertices = [
-		[x, y, z],
-		[x + w, y, z],
-		[x + w, y, z + h],
-		[x, y, z + h]
-	];
-	let triangles = [
+function generateRectangle(topLeft, width, height, plane) {
+	// Define vertices
+	const vertices = [];
+	vertices.push(topLeft.slice()); // Vertex 0
+
+	if (plane === 'XY' || plane === 'XYZ') {
+		vertices.push([topLeft[0] + width, topLeft[1], topLeft[2]]); // Vertex 1
+		vertices.push([topLeft[0] + width, topLeft[1] - height, topLeft[2]]); // Vertex 2
+		vertices.push([topLeft[0], topLeft[1] - height, topLeft[2]]); // Vertex 3
+	} else if (plane === 'YZ') {
+		vertices.push([topLeft[0], topLeft[1] - height, topLeft[2]]); // Vertex 1
+		vertices.push([topLeft[0], topLeft[1] - height, topLeft[2] + width]); // Vertex 2
+		vertices.push([topLeft[0], topLeft[1], topLeft[2] + width]); // Vertex 3
+	} else if (plane === 'XZ') {
+		vertices.push([topLeft[0] + width, topLeft[1], topLeft[2]]); // Vertex 1
+		vertices.push([topLeft[0] + width, topLeft[1], topLeft[2] + height]); // Vertex 2
+		vertices.push([topLeft[0], topLeft[1], topLeft[2] + height]); // Vertex 3
+	} else {
+		throw new Error('Invalid plane. Supported values are XY, YZ, XZ, and XYZ.');
+	}
+
+	// Define triangles
+	const triangles = [
 		[0, 1, 2],
 		[2, 3, 0]
 	];
-	return {
-		vertices,
-		triangles
-	};
+
+	return { vertices, triangles };
 }
 
 function getSceneModels() {
-	const len = 2;
-	blockLength = len / noOfBlocks;
-	const ground = { ...generateRectXZ([-1, 0, -len], len, len - blockLength), ...theme.road };
+	return [
+		...buildGroundPlaneModels(),
+		...generateCars(1, -1),
+		...generateCars(2, -1),
+		...generateCars(3, -1),
+		...generateWood(8, -1),
+		...generateWood(10, -1)
+	];
+}
+
+function generateCuboid(topLeft, width, height, depth) {
+	// Top and botton faces - XZ
+	const xzRect = generateRectangle(topLeft, width, depth, 'XZ');
+	const xzOppositeRect = generateRectangle([topLeft[0], topLeft[0] - height, topLeft[2]], width, depth, 'XZ');
+
+	// Front and back faces - XY
+	const xyRect = generateRectangle([topLeft[0], topLeft[1], topLeft[2] + depth], width, height, 'XY');
+	const xyOppositeRect = generateRectangle(topLeft, width, height, 'XY');
+
+	// Left and right faces - YZ
+	const yzRect = generateRectangle(topLeft, depth, height, 'YZ');
+	const yzOppositeRect = generateRectangle([topLeft[0] + width, topLeft[1], topLeft[2]], depth, height, 'YZ');
+
+	// Combine vertices and triangles from each rectangle
+	const vertices = [
+		...xyRect.vertices,
+		...xzRect.vertices,
+		...yzRect.vertices,
+		...xyOppositeRect.vertices,
+		...xzOppositeRect.vertices,
+		...yzOppositeRect.vertices
+	];
+
+	const triangles = [
+		...xyRect.triangles,
+		...xzRect.triangles.map((t) => t.map((v) => v + xyRect.vertices.length)),
+		...yzRect.triangles.map((t) => t.map((v) => v + xyRect.vertices.length + xzRect.vertices.length)),
+		...xyOppositeRect.triangles.map((t) =>
+			t.map((v) => v + xyRect.vertices.length + xzRect.vertices.length + yzRect.vertices.length)
+		),
+		...xzOppositeRect.triangles.map((t) =>
+			t.map(
+				(v) =>
+					v +
+					// xyRect.vertices.length +
+					xzRect.vertices.length +
+					yzRect.vertices.length +
+					xyOppositeRect.vertices.length
+			)
+		),
+		...yzOppositeRect.triangles.map((t) =>
+			t.map(
+				(v) =>
+					v +
+					xyRect.vertices.length +
+					xzRect.vertices.length +
+					yzRect.vertices.length +
+					xyOppositeRect.vertices.length +
+					xzOppositeRect.vertices.length
+			)
+		)
+	];
+
+	return { vertices, triangles };
+}
+
+function buildGroundPlaneModels() {
+	const plane = 'XZ';
+	const ground = { ...generateRectangle([-1, 0, -len], len, len - blockLength, plane), ...theme.road };
 	const baseVertices = ground.vertices;
 	console.log({ baseVertices });
 	const grassStrips = [
-		{ ...generateRectXZ([-1, 0.002, -blockLength], 2, blockLength), ...theme.ground },
+		{ ...generateRectangle([-1, 0.002, -blockLength], 2, blockLength, plane), ...theme.ground },
 		{
-			...generateRectXZ([-1, 0.002, (-blockLength * noOfBlocks) / 2], 2, blockLength),
+			...generateRectangle([-1, 0.002, (-blockLength * noOfBlocks) / 2], 2, blockLength, plane),
 			...theme.ground
 		},
 
-		{ ...generateRectXZ([-1, 0.002, -blockLength * noOfBlocks], 2, blockLength), ...theme.ground }
+		{ ...generateRectangle([-1, 0.002, -blockLength * noOfBlocks], 2, blockLength, plane), ...theme.ground }
 	];
 	const riverLen = 0.5 * len - blockLength;
 	const river = {
-		...generateRectXZ([-1, 0.002, -len + blockLength], 2, riverLen),
+		...generateRectangle([-1, 0.002, -len + blockLength], 2, riverLen, plane),
 		...theme.river
 	};
 	return [ground, ...grassStrips, river];
+}
+
+function generateCars(lane, direction, themeOption) {
+	if (!themeOption) {
+		themeOption = theme.random();
+	}
+	if (lane < 1) {
+		throw new Error('Invalid lane number');
+	}
+	const z = -blockLength - lane * blockLength;
+	const cars = [];
+	for (let i = 0; i < 4; i++) {
+		cars.push({
+			...generateCuboid(
+				[direction + Math.random() * 10 * blockLength + 2 * cars.length * blockLength, blockLength, z],
+				blockLength,
+				blockLength / 3,
+				blockLength
+			),
+			...themeOption
+		});
+	}
+	// const car = ;
+	return [...cars];
+}
+
+function generateWood(lane, direction, themeOption) {
+	if (!themeOption) {
+		themeOption = theme.wood;
+	}
+	if (lane < 1) {
+		throw new Error('Invalid lane number');
+	}
+	const z = -blockLength - lane * blockLength;
+	const w = blockLength * 2;
+	const woods = [];
+	for (let i = 0; i < 4; i++) {
+		woods.push({
+			...generateCuboid(
+				[direction + Math.random() * 10 * w + 2 * woods.length * blockLength, blockLength, z],
+				w,
+				blockLength / 3,
+				blockLength
+			),
+			...themeOption
+		});
+	}
+	// const car = ;
+	return [...woods];
 }
 
 function main() {
