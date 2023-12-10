@@ -38,7 +38,7 @@ var Eye = vec3.clone(defaultEye); // eye position in world space
 var Center = vec3.clone(defaultCenter); // view direction in world space
 var Up = vec3.clone(defaultUp); // view up vector in world space
 
-// ASSIGNMENT HELPER FUNCTIONS
+let gridUnitSquareLen = 12;
 
 // get the JSON file from the passed URL
 function getJSONFile(url, descr) {
@@ -410,8 +410,6 @@ function loadModels() {
 				); // data in
 			} // end for each triangle set
 
-			inputEllipsoids = getJSONFile(INPUT_ELLIPSOIDS_URL, 'ellipsoids'); // read in the ellipsoids
-
 			if (inputEllipsoids == String.null) throw 'Unable to load ellipsoids file!';
 			else {
 				// init ellipsoid highlighting, translation and rotation; update bbox
@@ -625,9 +623,6 @@ function renderModels() {
 	} // end for each triangle set
 
 	// render each ellipsoid
-	var ellipsoid,
-		instanceTransform = mat4.create(); // the current ellipsoid and material
-
 	for (var whichEllipsoid = 0; whichEllipsoid < numEllipsoids; whichEllipsoid++) {
 		ellipsoid = inputEllipsoids[whichEllipsoid];
 
@@ -649,7 +644,24 @@ function renderModels() {
 	} // end for each ellipsoid
 } // end render model
 
-/* MAIN -- HERE is where execution begins after window load */
+function generateRect(x = 0, y = 0, z = 0, w, h) {
+	return {
+		material: {
+			diffuse: [0.6, 0.6, 0.4],
+			alpha: 0.3
+		},
+		vertices: [
+			[0.3, 0.1, 0.65],
+			[0.3, 0.4, 0.65],
+			[0.6, 0.4, 0.65],
+			[0.6, 0.1, 0.65]
+		],
+		triangles: [
+			[0, 1, 2],
+			[2, 3, 0]
+		]
+	};
+}
 
 function main() {
 	setupWebGL(); // set up the webGL environment
