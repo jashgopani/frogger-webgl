@@ -130,11 +130,11 @@ function loadModels() {
 				if (inputTriangles[whichSet].type === 'frog' && inputTriangles[whichSet].lives > 0) {
 					currentFrogIndex = whichSet;
 				}
-				if (inputTriangles[whichSet].type === 'cars' || inputTriangles[whichSet].type === 'wood') {
-					if (laneMapping[inputTriangles[whichSet].lane]) {
-						laneMapping[inputTriangles[whichSet].lane].push(whichSet);
+				if (inputTriangles[whichSet].type) {
+					if (laneMapping[inputTriangles[whichSet].type]) {
+						laneMapping[inputTriangles[whichSet].type].push(whichSet);
 					} else {
-						laneMapping[inputTriangles[whichSet].lane] = [whichSet];
+						laneMapping[inputTriangles[whichSet].type] = [whichSet];
 					}
 				}
 				// set up hilighting, modeling translation and rotation
@@ -183,6 +183,7 @@ function loadModels() {
 				); // data in
 			} // end for each triangle set
 		} // end if triangle file loaded
+		console.log(laneMapping);
 	} catch (e) {
 		// end try
 
@@ -338,30 +339,6 @@ function renderModels() {
 		frogData.translation
 	);
 	const frogsLane = Math.abs(Math.ceil(currFrogPosition[2] / blockLength + (currFrogPosition[2] % blockLength)) + 1);
-	// if (laneMapping[frogsLane]) {
-	// 	for (let i = 0; i < laneMapping[frogsLane].length; i++) {
-	// 		const object = inputTriangles[laneMapping[frogsLane][i]];
-	// 		const { bounds, translation } = object;
-	// 		const objectPosition = vec3.add(vec3.create(), vec3.fromValues(bounds.x, bounds.y, bounds.z), translation);
-	// 		const collided = collisionDetected(currFrogPosition, frogData.bounds, objectPosition, bounds);
-	// 		if (collided) {
-	// 			inputTriangles[currentFrogIndex].translation = vec3.create();
-	// 			inputTriangles[currentFrogIndex].bounds = {
-	// 				x: frogStartXZ[0],
-	// 				y: frogStartXZ[1],
-	// 				z: frogStartXZ[2],
-	// 				w: blockLength
-	// 			};
-	// 			inputTriangles[currentFrogIndex].lives -= 1;
-	// 			if (inputTriangles[currentFrogIndex].lives <= 0) {
-	// 				alert('Game Over!');
-	// 				requestAnimationFrameLoopEnabled = false;
-	// 			}
-	// 			break;
-	// 		}
-	// 	}
-	// }
-	// console.log({ currentLane });
 
 	// render each triangle set
 	var currSet; // the tri set and its material properties
