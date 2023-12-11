@@ -5,7 +5,7 @@ var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in wo
 // var defaultEye = vec3.fromValues(0, 0.5, 0.4); // default eye position in world space
 // var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0, 1, 0); // default view up vector
-const fov = Math.PI * 0.75; //90 degrees
+const fov = Math.PI * 0.5; //90 degrees
 var rotateTheta = Math.PI / 50; // how much to rotate models by with each key press
 
 /* webgl and geometry data */
@@ -32,10 +32,16 @@ var Center = vec3.clone(defaultCenter); // view direction in world space
 var Up = vec3.clone(defaultUp); // view up vector in world space
 
 const noOfBlocks = 15;
+const laneSpeed = Array(noOfBlocks)
+	.fill(0.1 + Math.random())
+	.map((v, i) => v * (i + 1) * 0.001);
 const len = 2;
 let blockLength = len / noOfBlocks;
 
 let currentFrogIndex = -1;
+let laneMapping = {};
+const frogStartXZ = [-0.5 * blockLength, 0.01, -blockLength];
+let requestAnimationFrameLoopEnabled = true;
 
 const theme = {
 	default: {
@@ -75,12 +81,10 @@ const theme = {
 			}
 		};
 	},
-	landingPad: () => {
-		return {
-			material: {
-				diffuse: [1, 1, 0.1]
-			}
-		};
+	landingPad: {
+		material: {
+			diffuse: [1, 1, 0.1]
+		}
 	}
 };
 
@@ -123,8 +127,15 @@ function loadModels() {
 			numTriangleSets = inputTriangles.length; // remember how many tri sets
 			for (var whichSet = 0; whichSet < numTriangleSets; whichSet++) {
 				// for each tri set
-				if (inputTriangles[whichSet].type === 'frog' && inputTriangles[whichSet].alive) {
+				if (inputTriangles[whichSet].type === 'frog' && inputTriangles[whichSet].lives > 0) {
 					currentFrogIndex = whichSet;
+				}
+				if (inputTriangles[whichSet].type === 'cars' || inputTriangles[whichSet].type === 'wood') {
+					if (laneMapping[inputTriangles[whichSet].lane]) {
+						laneMapping[inputTriangles[whichSet].lane].push(whichSet);
+					} else {
+						laneMapping[inputTriangles[whichSet].lane] = [whichSet];
+					}
 				}
 				// set up hilighting, modeling translation and rotation
 				inputTriangles[whichSet].center = vec3.fromValues(0, 0, 0); // center point of tri set
@@ -304,7 +315,12 @@ function renderModels() {
 	var pvMatrix = mat4.create(); // hand * proj * view matrices
 	var pvmMatrix = mat4.create(); // hand * proj * view * model matrices
 
-	window.requestAnimationFrame(renderModels); // set up frame render callback
+	if (requestAnimationFrameLoopEnabled) {
+		requestAnimationFrameLoopEnabled = true;
+		window.requestAnimationFrame(renderModels);
+	} else {
+		alert('Game Over! Refresh the page to start again');
+	}
 
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
 
@@ -314,11 +330,81 @@ function renderModels() {
 	mat4.multiply(pvMatrix, pvMatrix, pMatrix); // projection
 	mat4.multiply(pvMatrix, pvMatrix, vMatrix); // projection * view
 
+	//check for accidents
+	const frogData = inputTriangles[currentFrogIndex];
+	const currFrogPosition = vec3.add(
+		vec3.create(),
+		vec3.fromValues(frogData.bounds.x, frogData.bounds.y, frogData.bounds.z),
+		frogData.translation
+	);
+	const frogsLane = Math.abs(Math.ceil(currFrogPosition[2] / blockLength + (currFrogPosition[2] % blockLength)) + 1);
+	// if (laneMapping[frogsLane]) {
+	// 	for (let i = 0; i < laneMapping[frogsLane].length; i++) {
+	// 		const object = inputTriangles[laneMapping[frogsLane][i]];
+	// 		const { bounds, translation } = object;
+	// 		const objectPosition = vec3.add(vec3.create(), vec3.fromValues(bounds.x, bounds.y, bounds.z), translation);
+	// 		const collided = collisionDetected(currFrogPosition, frogData.bounds, objectPosition, bounds);
+	// 		if (collided) {
+	// 			inputTriangles[currentFrogIndex].translation = vec3.create();
+	// 			inputTriangles[currentFrogIndex].bounds = {
+	// 				x: frogStartXZ[0],
+	// 				y: frogStartXZ[1],
+	// 				z: frogStartXZ[2],
+	// 				w: blockLength
+	// 			};
+	// 			inputTriangles[currentFrogIndex].lives -= 1;
+	// 			if (inputTriangles[currentFrogIndex].lives <= 0) {
+	// 				alert('Game Over!');
+	// 				requestAnimationFrameLoopEnabled = false;
+	// 			}
+	// 			break;
+	// 		}
+	// 	}
+	// }
+	// console.log({ currentLane });
+
 	// render each triangle set
 	var currSet; // the tri set and its material properties
 	for (var whichTriSet = 0; whichTriSet < numTriangleSets; whichTriSet++) {
 		currSet = inputTriangles[whichTriSet];
+		if (currSet.type) {
+			const { type, lane, direction } = currSet;
+			if (type !== 'frog' && type !== 'landingBlocks') {
+				let step = -direction * laneSpeed[lane];
+				if (isOutOfBounds(currSet.bounds.x + currSet.bounds.w + step)) {
+					step = currSet.bounds.x > 0 ? -len : len;
+				}
+				vec3.add(currSet.translation, currSet.translation, [step, 0, 0]);
+				currSet.bounds.x += step;
 
+				//check for collision with frog after taking the step
+				if (lane === frogsLane) {
+					const collided = collisionDetected(
+						currFrogPosition[0],
+						frogData.bounds.w,
+						currSet.bounds.x,
+						currSet.bounds.w,
+						direction
+					);
+					if (collided) {
+						console.log(`Collision in lane ${frogsLane} with model# ${whichTriSet}`);
+						inputTriangles[currentFrogIndex].translation = vec3.create();
+						inputTriangles[currentFrogIndex].bounds = {
+							x: frogStartXZ[0],
+							y: frogStartXZ[1],
+							z: frogStartXZ[2],
+							w: blockLength
+						};
+						console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
+						inputTriangles[currentFrogIndex].lives -= 1;
+						console.log('remaining lives after', inputTriangles[currentFrogIndex].lives);
+						if (inputTriangles[currentFrogIndex].lives <= 0) {
+							requestAnimationFrameLoopEnabled = false;
+						}
+					}
+				}
+			}
+		}
 		// make model transform, add to view project
 		makeModelTransform(currSet);
 		mat4.multiply(pvmMatrix, pvMatrix, mMatrix); // project * view * model
@@ -398,11 +484,11 @@ function getSceneModels() {
 		...generateCars(3, 1),
 		...generateCars(4, -1),
 		...generateCars(5, 1),
-		...generateWood(0.5 * noOfBlocks, -1),
-		...generateWood(0.5 * noOfBlocks + 1, 1),
-		...generateWood(0.5 * noOfBlocks + 2, -1),
-		...generateWood(0.5 * noOfBlocks + 3, 1),
-		generateFrog(-0.5 * blockLength, -blockLength)
+		...generateWood(Math.ceil(0.5 * noOfBlocks), -1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 1), 1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 2), -1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 3), 1),
+		generateFrog()
 	];
 }
 
@@ -490,19 +576,22 @@ function generateTriangle(topVertex, base, height, plane) {
 
 function buildGroundPlaneModels() {
 	const plane = 'XZ';
-	const ground = { ...generateRectangle([-1, 0, -len], len, len - blockLength, plane), ...theme.road };
-	const baseVertices = ground.vertices;
-	console.log({ baseVertices });
+	const ground = {
+		...generateRectangle([-1, 0, -len + blockLength], len, len - blockLength, plane),
+		...theme.road
+	};
 	const grassStrips = [
-		{ ...generateRectangle([-1, 0.002, -blockLength], 2, blockLength, plane), ...theme.ground },
+		//start strip
+		{ ...generateRectangle([-1, 0.002, -blockLength], len, blockLength, plane), ...theme.ground },
+		//middle strip
 		{
-			...generateRectangle([-1, 0.002, (-blockLength * noOfBlocks) / 2], 2, blockLength, plane),
+			...generateRectangle([-1, 0.002, -blockLength * Math.floor(noOfBlocks / 2)], 2, blockLength, plane),
 			...theme.ground
 		}
 	];
-	const riverLen = 0.5 * len - blockLength;
+	const riverLen = blockLength * (Math.floor(noOfBlocks / 2) - 1);
 	const river = {
-		...generateRectangle([-1, 0.002, -len + blockLength], 2, riverLen, plane),
+		...generateRectangle([-1, 0.002, -len + 2 * blockLength], 2, riverLen, plane),
 		...theme.river
 	};
 	return [ground, ...grassStrips, river];
@@ -523,11 +612,16 @@ function generateLandingBlocks() {
 		const z = -len;
 		const y = i % 2 === 0 ? h : 0.01;
 		const bounds = { x, y, z, w };
-		if (i % 2 == 0) {
+		if (i % 2 === 0) {
 			const cuboid = generateCuboid([x, h, z], w, h, d);
 			blocks.push({ ...cuboid, ...theme.ground, bounds });
 		} else {
-			blocks.push({ ...generateRectangle([x, y, z], w, d, 'XZ'), ...theme.landingPad(), bounds });
+			blocks.push({
+				type: 'landingBlock',
+				...generateRectangle([x, y, z], w, d, 'XZ'),
+				...theme.landingPad,
+				bounds
+			});
 		}
 		if (reach < 1) x += w;
 		else break;
@@ -549,6 +643,7 @@ function generateCars(lane, direction, themeOption) {
 		const h = blockLength * Math.random();
 		const d = blockLength;
 		cars.push({
+			type: 'cars',
 			...generateCuboid([x, h, z], w, h, d),
 			...themeOption,
 			bounds: { x, y: h, z, w },
@@ -573,11 +668,12 @@ function generateWood(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const woods = [];
-	for (let i = 0, x = direction; i < 4; i++) {
-		const w = blockLength * 5 * Math.random();
+	for (let i = 0, x = direction; i < 2; i++) {
+		const w = blockLength * 2;
 		const h = blockLength / 5;
 		const d = blockLength * 0.9;
 		woods.push({
+			type: 'wood',
 			...generateCuboid([x, h, z], w, h, d),
 			...themeOption,
 			bounds: { x, y: h, z, w },
@@ -585,22 +681,34 @@ function generateWood(lane, direction, themeOption) {
 			direction
 		});
 		if (direction > 0) {
-			x += w + blockLength;
+			x += w + 1.5 * blockLength;
 		} else {
-			x -= w + blockLength;
+			x -= w + 1.5 * blockLength;
 		}
 	}
 	return [...woods];
 }
 
 function generateFrog(x, z) {
-	const triangle = generateTriangle([x, 0.1, z], blockLength, blockLength, 'XZ');
+	const triangle = generateTriangle(frogStartXZ, blockLength, blockLength, 'XZ');
 	return {
 		type: 'frog',
+		lives: 5,
 		alive: true,
 		...triangle,
-		...theme.frog
+		...theme.frog,
+		bounds: { x: frogStartXZ[0], y: frogStartXZ[1], z: frogStartXZ[2], w: blockLength }
 	};
+}
+
+function isOutOfBounds(v) {
+	return v < -1 || v > 1;
+}
+
+function collisionDetected(x1, w1, x2, w2, direction = -1) {
+	const length1 = x1 + w1;
+	const length2 = x2 + w2;
+	return direction < 0 ? x1 <= length2 && x1 >= x2 : length1 >= x2 && x2 >= x1;
 }
 
 function main() {
