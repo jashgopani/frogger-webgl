@@ -7,8 +7,8 @@
 -   [x] Setup basic extensible rendering pipeline
 -   [x] Add indice based rendering support
 -   [x] Add perspective
--   [ ] Add generators for primitives
--   [ ] Use primitive generators for modelling
+-   [x] Add generators for primitives
+-   [x] Use primitive generators for modelling
 -   [ ] Prepare static scene complete
 -   [ ] Add user interaction and apply transformations to moving objects
 -   [ ] Add collision detection and other rules using bounding box

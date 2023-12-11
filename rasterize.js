@@ -24,10 +24,7 @@ var viewDelta = 0; // how much to displace view with each key press
 var vPosAttribLoc; // where to put position for vertex shader
 var mMatrixULoc; // where to put model matrix for vertex shader
 var pvmMatrixULoc; // where to put project model view matrix for vertex shader
-var ambientULoc; // where to put ambient reflecivity for fragment shader
 var diffuseULoc; // where to put diffuse reflecivity for fragment shader
-var specularULoc; // where to put specular reflecivity for fragment shader
-var shininessULoc; // where to put specular exponent for fragment shader
 
 /* interaction variables */
 var Eye = vec3.clone(defaultEye); // eye position in world space
@@ -59,6 +56,11 @@ const theme = {
 			diffuse: [0.25, 0.25, 0.25]
 		}
 	},
+	frog: {
+		material: {
+			diffuse: [0.05, 0.25, 0.15]
+		}
+	},
 	wood: {
 		material: {
 			diffuse: [0.75, 0.45, 0.25]
@@ -68,6 +70,13 @@ const theme = {
 		return {
 			material: {
 				diffuse: [Math.random(), Math.random(), Math.random()]
+			}
+		};
+	},
+	randomDark: () => {
+		return {
+			material: {
+				diffuse: [Math.random(), Math.random() * Math.random(), Math.random()]
 			}
 		};
 	}
@@ -91,108 +100,9 @@ function setupWebGL() {
 			gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
 		}
 	} catch (e) {
-		// end try
-
 		console.log(e);
 	} // end catch
 } // end setupWebGL
-
-// make an ellipsoid, with numLongSteps longitudes.
-// start with a sphere of radius 1 at origin
-// Returns verts, tris and normals.
-function makeEllipsoid(currEllipsoid, numLongSteps) {
-	try {
-		if (numLongSteps % 2 != 0) throw 'in makeSphere: uneven number of longitude steps!';
-		else if (numLongSteps < 4) throw 'in makeSphere: number of longitude steps too small!';
-		else {
-			// good number longitude steps
-
-			console.log('ellipsoid xyz: ' + ellipsoid.x + ' ' + ellipsoid.y + ' ' + ellipsoid.z);
-
-			// make vertices
-			var ellipsoidVertices = [0, -1, 0]; // vertices to return, init to south pole
-			var angleIncr = (Math.PI + Math.PI) / numLongSteps; // angular increment
-			var latLimitAngle = angleIncr * (Math.floor(numLongSteps / 4) - 1); // start/end lat angle
-			var latRadius, latY; // radius and Y at current latitude
-			for (var latAngle = -latLimitAngle; latAngle <= latLimitAngle; latAngle += angleIncr) {
-				latRadius = Math.cos(latAngle); // radius of current latitude
-				latY = Math.sin(latAngle); // height at current latitude
-				for (
-					var longAngle = 0;
-					longAngle < 2 * Math.PI;
-					longAngle += angleIncr // for each long
-				)
-					ellipsoidVertices.push(latRadius * Math.sin(longAngle), latY, latRadius * Math.cos(longAngle));
-			} // end for each latitude
-			ellipsoidVertices.push(0, 1, 0); // add north pole
-			ellipsoidVertices = ellipsoidVertices.map(function (val, idx) {
-				// position and scale ellipsoid
-				switch (idx % 3) {
-					case 0: // x
-						return val * currEllipsoid.a + currEllipsoid.x;
-					case 1: // y
-						return val * currEllipsoid.b + currEllipsoid.y;
-					case 2: // z
-						return val * currEllipsoid.c + currEllipsoid.z;
-				} // end switch
-			});
-
-			// make normals using the ellipsoid gradient equation
-			// resulting normals are unnormalized: we rely on shaders to normalize
-			var ellipsoidNormals = ellipsoidVertices.slice(); // start with a copy of the transformed verts
-			ellipsoidNormals = ellipsoidNormals.map(function (val, idx) {
-				// calculate each normal
-				switch (idx % 3) {
-					case 0: // x
-						return (2 / (currEllipsoid.a * currEllipsoid.a)) * (val - currEllipsoid.x);
-					case 1: // y
-						return (2 / (currEllipsoid.b * currEllipsoid.b)) * (val - currEllipsoid.y);
-					case 2: // z
-						return (2 / (currEllipsoid.c * currEllipsoid.c)) * (val - currEllipsoid.z);
-				} // end switch
-			});
-
-			// make triangles, from south pole to middle latitudes to north pole
-			var ellipsoidTriangles = []; // triangles to return
-			for (
-				var whichLong = 1;
-				whichLong < numLongSteps;
-				whichLong++ // south pole
-			)
-				ellipsoidTriangles.push(0, whichLong, whichLong + 1);
-			ellipsoidTriangles.push(0, numLongSteps, 1); // longitude wrap tri
-			var llVertex; // lower left vertex in the current quad
-			for (var whichLat = 0; whichLat < numLongSteps / 2 - 2; whichLat++) {
-				// middle lats
-				for (var whichLong = 0; whichLong < numLongSteps - 1; whichLong++) {
-					llVertex = whichLat * numLongSteps + whichLong + 1;
-					ellipsoidTriangles.push(llVertex, llVertex + numLongSteps, llVertex + numLongSteps + 1);
-					ellipsoidTriangles.push(llVertex, llVertex + numLongSteps + 1, llVertex + 1);
-				} // end for each longitude
-				ellipsoidTriangles.push(llVertex + 1, llVertex + numLongSteps + 1, llVertex + 2);
-				ellipsoidTriangles.push(llVertex + 1, llVertex + 2, llVertex - numLongSteps + 2);
-			} // end for each latitude
-			for (
-				var whichLong = llVertex + 2;
-				whichLong < llVertex + numLongSteps + 1;
-				whichLong++ // north pole
-			)
-				ellipsoidTriangles.push(whichLong, ellipsoidVertices.length / 3 - 1, whichLong + 1);
-			ellipsoidTriangles.push(
-				ellipsoidVertices.length / 3 - 2,
-				ellipsoidVertices.length / 3 - 1,
-				ellipsoidVertices.length / 3 - numLongSteps - 1
-			); // longitude wrap
-		} // end if good number longitude steps
-		return {
-			vertices: ellipsoidVertices,
-			normals: ellipsoidNormals,
-			triangles: ellipsoidTriangles
-		};
-	} catch (e) {
-		console.log(e);
-	} // end catch
-}
 
 // read models in, load them into webgl buffers
 function loadModels() {
@@ -257,50 +167,6 @@ function loadModels() {
 					gl.STATIC_DRAW
 				); // data in
 			} // end for each triangle set
-
-			if (inputEllipsoids == String.null) throw 'Unable to load ellipsoids file!';
-			else {
-				// init ellipsoid highlighting, translation and rotation; update bbox
-				var ellipsoid; // current ellipsoid
-				var ellipsoidModel; // current ellipsoid triangular model
-				var temp = vec3.create(); // an intermediate vec3
-				var minXYZ = vec3.create(),
-					maxXYZ = vec3.create(); // min/max xyz from ellipsoid
-				numEllipsoids = inputEllipsoids.length; // remember how many ellipsoids
-				for (var whichEllipsoid = 0; whichEllipsoid < numEllipsoids; whichEllipsoid++) {
-					// set up various stats and transforms for this ellipsoid
-					ellipsoid = inputEllipsoids[whichEllipsoid];
-					ellipsoid.on = false; // ellipsoids begin without highlight
-					ellipsoid.translation = vec3.fromValues(0, 0, 0); // ellipsoids begin without translation
-					ellipsoid.xAxis = vec3.fromValues(1, 0, 0); // ellipsoid X axis
-					ellipsoid.yAxis = vec3.fromValues(0, 1, 0); // ellipsoid Y axis
-					ellipsoid.center = vec3.fromValues(ellipsoid.x, ellipsoid.y, ellipsoid.z); // locate ellipsoid ctr
-					vec3.set(minXYZ, ellipsoid.x - ellipsoid.a, ellipsoid.y - ellipsoid.b, ellipsoid.z - ellipsoid.c);
-					vec3.set(maxXYZ, ellipsoid.x + ellipsoid.a, ellipsoid.y + ellipsoid.b, ellipsoid.z + ellipsoid.c);
-					vec3.min(minCorner, minCorner, minXYZ); // update world bbox min corner
-					vec3.max(maxCorner, maxCorner, maxXYZ); // update world bbox max corner
-
-					// make the ellipsoid model
-					ellipsoidModel = makeEllipsoid(ellipsoid, 32);
-
-					// send the ellipsoid vertex coords and normals to webGL
-					vertexBuffers.push(gl.createBuffer()); // init empty webgl ellipsoid vertex coord buffer
-					gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffers[vertexBuffers.length - 1]); // activate that buffer
-					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(ellipsoidModel.vertices), gl.STATIC_DRAW); // data in
-					normalBuffers.push(gl.createBuffer()); // init empty webgl ellipsoid vertex normal buffer
-					gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffers[normalBuffers.length - 1]); // activate that buffer
-					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(ellipsoidModel.normals), gl.STATIC_DRAW); // data in
-
-					triSetSizes.push(ellipsoidModel.triangles.length);
-
-					// send the triangle indices to webGL
-					triangleBuffers.push(gl.createBuffer()); // init empty triangle index buffer
-					gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffers[triangleBuffers.length - 1]); // activate that buffer
-					gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(ellipsoidModel.triangles), gl.STATIC_DRAW); // data in
-				} // end for each ellipsoid
-
-				viewDelta = vec3.length(vec3.subtract(temp, maxCorner, minCorner)) / 100; // set global
-			} // end if ellipsoid file loaded
 		} // end if triangle file loaded
 	} catch (e) {
 		// end try
@@ -465,27 +331,6 @@ function renderModels() {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffers[whichTriSet]); // activate
 		gl.drawElements(gl.TRIANGLES, 3 * triSetSizes[whichTriSet], gl.UNSIGNED_SHORT, 0); // render
 	} // end for each triangle set
-
-	// render each ellipsoid
-	for (var whichEllipsoid = 0; whichEllipsoid < numEllipsoids; whichEllipsoid++) {
-		ellipsoid = inputEllipsoids[whichEllipsoid];
-
-		// define model transform, premult with pvmMatrix, feed to vertex shader
-		makeModelTransform(ellipsoid);
-		pvmMatrix = mat4.multiply(pvmMatrix, pvMatrix, mMatrix); // premultiply with pv matrix
-		gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in model matrix
-		gl.uniformMatrix4fv(pvmMatrixULoc, false, pvmMatrix); // pass in project view model matrix
-
-		// reflectivity: feed to the fragment shader
-		gl.uniform3fv(diffuseULoc, ellipsoid.diffuse); // pass in the diffuse reflectivity
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffers[numTriangleSets + whichEllipsoid]); // activate vertex buffer
-		gl.vertexAttribPointer(vPosAttribLoc, 3, gl.FLOAT, false, 0, 0); // feed vertex buffer to shader
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffers[numTriangleSets + whichEllipsoid]); // activate tri buffer
-
-		// draw a transformed instance of the ellipsoid
-		gl.drawElements(gl.TRIANGLES, triSetSizes[numTriangleSets + whichEllipsoid], gl.UNSIGNED_SHORT, 0); // render
-	} // end for each ellipsoid
 } // end render model
 
 // does stuff when keys are pressed
@@ -517,7 +362,7 @@ function handleKeyDown(event) {
 	} // end rotate model
 
 	// set up needed view params
-	var lookAt = vec3.create(),
+	let lookAt = vec3.create(),
 		viewRight = vec3.create(),
 		temp = vec3.create(); // lookat, right & temp vectors
 	lookAt = vec3.normalize(lookAt, vec3.subtract(temp, Center, Eye)); // get lookat vector
@@ -529,28 +374,24 @@ function handleKeyDown(event) {
 
 	switch (event.code) {
 		// model selection
-		case 'Space':
-			if (handleKeyDown.modelOn != null) handleKeyDown.modelOn.on = false; // turn off highlighted model
-			handleKeyDown.modelOn = null; // no highlighted model
-			handleKeyDown.whichOn = -1; // nothing highlighted
-			break;
+
 		case 'ArrowRight': // select next triangle set
 			highlightModel(modelEnum.TRIANGLES, (handleKeyDown.whichOn + 1) % numTriangleSets);
 			break;
 		case 'ArrowLeft': // select previous triangle set
-			highlightModel(
-				modelEnum.TRIANGLES,
-				handleKeyDown.whichOn > 0 ? handleKeyDown.whichOn - 1 : numTriangleSets - 1
-			);
+			// highlightModel(
+			// 	modelEnum.TRIANGLES,
+			// 	handleKeyDown.whichOn > 0 ? handleKeyDown.whichOn - 1 : numTriangleSets - 1
+			// );
 			break;
 		case 'ArrowUp': // select next ellipsoid
-			highlightModel(modelEnum.ELLIPSOID, (handleKeyDown.whichOn + 1) % numEllipsoids);
+			// highlightModel(modelEnum.ELLIPSOID, (handleKeyDown.whichOn + 1) % numEllipsoids);
 			break;
 		case 'ArrowDown': // select previous ellipsoid
-			highlightModel(
-				modelEnum.ELLIPSOID,
-				handleKeyDown.whichOn > 0 ? handleKeyDown.whichOn - 1 : numEllipsoids - 1
-			);
+			// highlightModel(
+			// 	modelEnum.ELLIPSOID,
+			// 	handleKeyDown.whichOn > 0 ? handleKeyDown.whichOn - 1 : numEllipsoids - 1
+			// );
 			break;
 
 		// view change
@@ -674,12 +515,16 @@ function generateRectangle(topLeft, width, height, plane) {
 
 function getSceneModels() {
 	return [
+		...generateLandingBlocks(),
 		...buildGroundPlaneModels(),
 		...generateCars(1, -1),
 		...generateCars(2, -1),
 		...generateCars(3, -1),
-		...generateWood(8, -1),
-		...generateWood(10, -1)
+		...generateWood(0.5 * noOfBlocks, -1),
+		...generateWood(0.5 * noOfBlocks + 1, -1),
+		...generateWood(0.5 * noOfBlocks + 2, -1),
+		...generateWood(0.5 * noOfBlocks + 3, -1),
+		generateFrog(-0.5 * blockLength, -blockLength)
 	];
 }
 
@@ -749,9 +594,12 @@ function buildGroundPlaneModels() {
 		{
 			...generateRectangle([-1, 0.002, (-blockLength * noOfBlocks) / 2], 2, blockLength, plane),
 			...theme.ground
-		},
-
-		{ ...generateRectangle([-1, 0.002, -blockLength * noOfBlocks], 2, blockLength, plane), ...theme.ground }
+		}
+		// { ...generateRectangle([-1, 0.002, -blockLength * noOfBlocks], 2, blockLength, plane), ...theme.ground },
+		// {
+		// 	...generateRectangle([-1, 0.002, -blockLength * (noOfBlocks - 1)], 2, blockLength, plane),
+		// 	...theme.ground
+		// }
 	];
 	const riverLen = 0.5 * len - blockLength;
 	const river = {
@@ -759,6 +607,31 @@ function buildGroundPlaneModels() {
 		...theme.river
 	};
 	return [ground, ...grassStrips, river];
+}
+
+function generateLandingBlocks() {
+	const blocks = [];
+
+	for (let i = 0, x = -1; x <= 1; i++) {
+		let w = i == 0 ? blockLength * 0.5 : blockLength * 2;
+		const reach = x + w;
+		console.log({ x, w, len, reach });
+		if (reach >= 1) {
+			w = 1 - x;
+		}
+		const h = blockLength;
+		const d = 2 * blockLength;
+		const z = -len;
+		if (i % 2 == 0) {
+			const cuboid = generateCuboid([x, h, z], w, h, d);
+			blocks.push({ ...cuboid, ...theme.ground });
+		} else {
+			blocks.push({ ...generateRectangle([x, 0.01, z], w, d, 'XZ'), ...theme.randomDark() });
+		}
+		if (reach < 1) x += w;
+		else break;
+	}
+	return blocks;
 }
 
 function generateCars(lane, direction, themeOption) {
@@ -775,13 +648,12 @@ function generateCars(lane, direction, themeOption) {
 			...generateCuboid(
 				[direction + Math.random() * 10 * blockLength + 2 * cars.length * blockLength, blockLength, z],
 				blockLength,
-				blockLength / 3,
+				blockLength * Math.random(),
 				blockLength
 			),
 			...themeOption
 		});
 	}
-	// const car = ;
 	return [...cars];
 }
 
@@ -798,7 +670,7 @@ function generateWood(lane, direction, themeOption) {
 	for (let i = 0; i < 4; i++) {
 		woods.push({
 			...generateCuboid(
-				[direction + Math.random() * 10 * w + 2 * woods.length * blockLength, blockLength, z],
+				[direction + Math.random() * 10 * w + 2 * woods.length * blockLength, blockLength / 3, z],
 				w,
 				blockLength / 3,
 				blockLength
@@ -806,8 +678,14 @@ function generateWood(lane, direction, themeOption) {
 			...themeOption
 		});
 	}
-	// const car = ;
 	return [...woods];
+}
+
+function generateFrog(x, z) {
+	return {
+		...generateCuboid([x, blockLength / 3, z], blockLength, blockLength / 3, blockLength),
+		...theme.frog
+	};
 }
 
 function main() {
