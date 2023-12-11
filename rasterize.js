@@ -5,7 +5,7 @@ var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in wo
 // var defaultEye = vec3.fromValues(0, 0.5, 0.4); // default eye position in world space
 // var defaultCenter = vec3.fromValues(0, 0, -0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0, 1, 0); // default view up vector
-const fov = Math.PI * 0.5; //90 degrees
+const fov = Math.PI * 0.75; //90 degrees
 var rotateTheta = Math.PI / 50; // how much to rotate models by with each key press
 
 /* webgl and geometry data */
@@ -75,10 +75,10 @@ const theme = {
 			}
 		};
 	},
-	randomDark: () => {
+	landingPad: () => {
 		return {
 			material: {
-				diffuse: [Math.random(), Math.random() * Math.random(), Math.random()]
+				diffuse: [1, 1, 0.1]
 			}
 		};
 	}
@@ -386,20 +386,22 @@ function generateRectangle(topLeft, width, height, plane) {
 		[2, 3, 0]
 	];
 
-	return { vertices, triangles };
+	return { vertices, triangles, bounds: { x: topLeft[0], y: topLeft[1], z: topLeft[2], w: width } };
 }
 
 function getSceneModels() {
 	return [
 		...generateLandingBlocks(),
 		...buildGroundPlaneModels(),
-		...generateCars(1, -1),
+		...generateCars(1, 1),
 		...generateCars(2, -1),
-		...generateCars(3, -1),
+		...generateCars(3, 1),
+		...generateCars(4, -1),
+		...generateCars(5, 1),
 		...generateWood(0.5 * noOfBlocks, -1),
-		...generateWood(0.5 * noOfBlocks + 1, -1),
+		...generateWood(0.5 * noOfBlocks + 1, 1),
 		...generateWood(0.5 * noOfBlocks + 2, -1),
-		...generateWood(0.5 * noOfBlocks + 3, -1),
+		...generateWood(0.5 * noOfBlocks + 3, 1),
 		generateFrog(-0.5 * blockLength, -blockLength)
 	];
 }
@@ -457,7 +459,7 @@ function generateCuboid(topLeft, width, height, depth) {
 		)
 	];
 
-	return { vertices, triangles };
+	return { vertices, triangles, bounds: { x: topLeft[0], y: topLeft[1], z: topLeft[2], w: width } };
 }
 
 function generateTriangle(topVertex, base, height, plane) {
@@ -513,16 +515,19 @@ function generateLandingBlocks() {
 		let w = i == 0 ? blockLength * 0.5 : blockLength * 2;
 		const reach = x + w;
 		if (reach >= 1) {
+			//cutting off cuboid width so that it does not go out of the ground plane
 			w = 1 - x;
 		}
 		const h = blockLength;
 		const d = 2 * blockLength;
 		const z = -len;
+		const y = i % 2 === 0 ? h : 0.01;
+		const bounds = { x, y, z, w };
 		if (i % 2 == 0) {
 			const cuboid = generateCuboid([x, h, z], w, h, d);
-			blocks.push({ ...cuboid, ...theme.ground });
+			blocks.push({ ...cuboid, ...theme.ground, bounds });
 		} else {
-			blocks.push({ ...generateRectangle([x, 0.01, z], w, d, 'XZ'), ...theme.randomDark() });
+			blocks.push({ ...generateRectangle([x, y, z], w, d, 'XZ'), ...theme.landingPad(), bounds });
 		}
 		if (reach < 1) x += w;
 		else break;
@@ -539,16 +544,22 @@ function generateCars(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const cars = [];
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0, x = direction; i < 4; i++) {
+		const w = blockLength;
+		const h = blockLength * Math.random();
+		const d = blockLength;
 		cars.push({
-			...generateCuboid(
-				[direction + Math.random() * 10 * blockLength + 2 * cars.length * blockLength, blockLength, z],
-				blockLength,
-				blockLength * Math.random(),
-				blockLength
-			),
-			...themeOption
+			...generateCuboid([x, h, z], w, h, d),
+			...themeOption,
+			bounds: { x, y: h, z, w },
+			lane,
+			direction
 		});
+		if (direction > 0) {
+			x += w + blockLength;
+		} else {
+			x -= w + blockLength;
+		}
 	}
 	return [...cars];
 }
@@ -561,18 +572,23 @@ function generateWood(lane, direction, themeOption) {
 		throw new Error('Invalid lane number');
 	}
 	const z = -blockLength - lane * blockLength;
-	const w = blockLength * 2;
 	const woods = [];
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0, x = direction; i < 4; i++) {
+		const w = blockLength * 5 * Math.random();
+		const h = blockLength / 5;
+		const d = blockLength * 0.9;
 		woods.push({
-			...generateCuboid(
-				[direction + Math.random() * 10 * w + 2 * woods.length * blockLength, blockLength / 3, z],
-				w,
-				blockLength / 3,
-				blockLength
-			),
-			...themeOption
+			...generateCuboid([x, h, z], w, h, d),
+			...themeOption,
+			bounds: { x, y: h, z, w },
+			lane,
+			direction
 		});
+		if (direction > 0) {
+			x += w + blockLength;
+		} else {
+			x -= w + blockLength;
+		}
 	}
 	return [...woods];
 }
