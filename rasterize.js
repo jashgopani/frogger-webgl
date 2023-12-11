@@ -42,6 +42,15 @@ let currentFrogIndex = -1;
 let laneMapping = {};
 const frogStartXZ = [-0.5 * blockLength, 0.01, -blockLength];
 let requestAnimationFrameLoopEnabled = true;
+let score = 0;
+const livesSpan = document.querySelector('#livesSpan');
+const scoreSpan = document.querySelector('#scoreSpan');
+const bgmusic = new Audio('./bgmusic.mp3');
+const fail = new Audio('./fail.mp3');
+const trumpet = new Audio('./trumpet.mp3');
+const cheer = new Audio('./cheer');
+const jump = new Audio('./jump.mp3');
+jump.volume = 1.0;
 
 const theme = {
 	default: {
@@ -84,6 +93,11 @@ const theme = {
 	landingPad: {
 		material: {
 			diffuse: [1, 1, 0.1]
+		}
+	},
+	turtle: {
+		material: {
+			diffuse: [0.458, 0.721, 0.31]
 		}
 	}
 };
@@ -183,7 +197,7 @@ function loadModels() {
 				); // data in
 			} // end for each triangle set
 		} // end if triangle file loaded
-		console.log(laneMapping);
+		// console.log(laneMapping);
 	} catch (e) {
 		// end try
 
@@ -319,11 +333,10 @@ function renderModels() {
 	//check for all landings filled case
 	if (laneMapping['landingBlockYellow']) {
 		const allLandingBlocksCaptured = laneMapping.landingBlockYellow.reduce((res, modelNo) => {
-			console.log(modelNo, 'captured', inputTriangles[modelNo]['captured']);
 			return inputTriangles[modelNo].type === 'landingBlockYellow' && inputTriangles[modelNo]['captured'] && res;
 		}, true);
-		console.log({ allLandingBlocksCaptured });
 		if (allLandingBlocksCaptured) {
+			cheer.play();
 			requestAnimationFrameLoopEnabled = false;
 			alert('Congratulations!!! You win :)');
 		}
@@ -410,6 +423,8 @@ function renderModels() {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffers[whichTriSet]); // activate
 		gl.drawElements(gl.TRIANGLES, 3 * triSetSizes[whichTriSet], gl.UNSIGNED_SHORT, 0); // render
 	} // end for each triangle set
+
+	livesSpan.innerText = inputTriangles[currentFrogIndex].lives;
 } // end render model
 
 function resetFrog(reduceLife) {
@@ -422,11 +437,13 @@ function resetFrog(reduceLife) {
 	};
 	console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
 	if (reduceLife) {
+		fail.play();
 		inputTriangles[currentFrogIndex].lives -= 1;
 	}
 	console.log('remaining lives after', inputTriangles[currentFrogIndex].lives);
 	if (inputTriangles[currentFrogIndex].lives <= 0) {
 		requestAnimationFrameLoopEnabled = false;
+		bgmusic.pause();
 	}
 }
 
@@ -437,15 +454,19 @@ function handleKeyDown(event) {
 	switch (event.key) {
 		case 'ArrowLeft':
 			vec3.add(currentFrog.translation, currentFrog.translation, [-blockLength, 0, 0]);
+			jump.play();
 			break;
 		case 'ArrowRight':
 			vec3.add(currentFrog.translation, currentFrog.translation, [blockLength, 0, 0]);
+			jump.play();
 			break;
 		case 'ArrowDown':
 			vec3.add(currentFrog.translation, currentFrog.translation, [0, 0, blockLength]);
+			jump.play();
 			break;
 		case 'ArrowUp':
 			vec3.add(currentFrog.translation, currentFrog.translation, [0, 0, -blockLength]);
+			jump.play();
 			break;
 	} // end switch
 
@@ -478,6 +499,9 @@ function handleKeyDown(event) {
 				console.log('reached landing spot');
 				inputTriangles[laneMapping['landingBlockYellow'][i]].material = theme.frog.material;
 				inputTriangles[laneMapping['landingBlockYellow'][i]].captured = true;
+				score += 100;
+				trumpet.volume = 1;
+				trumpet.play();
 				resetFrog(false);
 				break;
 			}
@@ -524,10 +548,10 @@ function getSceneModels() {
 		...generateCars(3, 1),
 		...generateCars(4, -1),
 		...generateCars(5, 1),
-		...generateWood(Math.ceil(0.5 * noOfBlocks - 1), -1),
+		...generateTurtle(Math.ceil(0.5 * noOfBlocks - 1), -1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks), -1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks + 1), 1),
-		...generateWood(Math.ceil(0.5 * noOfBlocks + 2), -1),
+		...generateTurtle(Math.ceil(0.5 * noOfBlocks + 2), -1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks + 3), 1),
 		generateFrog()
 	];
@@ -734,6 +758,36 @@ function generateWood(lane, direction, themeOption) {
 	return [...woods];
 }
 
+function generateTurtle(lane, direction, themeOption) {
+	if (!themeOption) {
+		themeOption = theme.turtle;
+	}
+	if (lane < 1) {
+		throw new Error('Invalid lane number');
+	}
+	const z = -blockLength - lane * blockLength;
+	const turtles = [];
+	for (let i = 0, x = direction; i < randInt(1, 3); i++) {
+		const w = blockLength;
+		const h = blockLength / 5;
+		const d = blockLength;
+		turtles.push({
+			type: 'turtles',
+			...generateCuboid([x, h, z], w, h, d),
+			...themeOption,
+			bounds: { x, y: h, z, w },
+			lane,
+			direction
+		});
+		if (direction > 0) {
+			x += w + randInt(blockLength, 4 * blockLength);
+		} else {
+			x -= w + randInt(blockLength, 4 * blockLength);
+		}
+	}
+	return [...turtles];
+}
+
 function generateFrog(x, z) {
 	const triangle = generateTriangle(frogStartXZ, blockLength, blockLength, 'XZ');
 	return {
@@ -775,6 +829,12 @@ function main() {
 	setupWebGL(); // set up the webGL environment
 	loadModels(); // load in the models from tri file
 	setupShaders(); // setup the webGL shaders
+	bgmusic.addEventListener('ended', () => {
+		bgmusic.play();
+	});
+	bgmusic.volume = 0.09;
+	fail.volume = 1;
+	bgmusic.play();
 	renderModels(); // draw the triangles using webGL
 } // end main
 
