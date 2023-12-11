@@ -51,6 +51,7 @@ const trumpet = new Audio('./trumpet.mp3');
 const cheer = new Audio('./cheer');
 const jump = new Audio('./jump.mp3');
 jump.volume = 1.0;
+let customMode = false;
 
 const theme = {
 	default: {
@@ -98,6 +99,39 @@ const theme = {
 	turtle: {
 		material: {
 			diffuse: [0.458, 0.721, 0.31]
+		}
+	}
+};
+
+const volcanoTheme = {
+	volcano: {
+		material: {
+			diffuse: [0.8, 0.2, 0.1] // Deep red for volcano
+		}
+	},
+	lava: {
+		material: {
+			diffuse: [1, 0.4, 0] // Bright orange for lava
+		}
+	},
+	smoke: {
+		material: {
+			diffuse: [0.7, 0.7, 0.7] // Gray for smoke
+		}
+	},
+	magma: {
+		material: {
+			diffuse: [0.8, 0.4, 0] // Warm brown for magma
+		}
+	},
+	ash: {
+		material: {
+			diffuse: [0.5, 0.5, 0.5] // Light gray for ash
+		}
+	},
+	steam: {
+		material: {
+			diffuse: [0.9, 0.9, 1] // Light blue for steam
 		}
 	}
 };
@@ -475,6 +509,11 @@ function handleKeyDown(event) {
 			vec3.add(currentFrog.translation, currentFrog.translation, [0, 0, -blockLength]);
 			jump.play();
 			break;
+		case '!':
+			customMode = !customMode;
+			loadModels();
+			console.log('custom mode changed to ', customMode);
+			break;
 	} // end switch
 	// currentFrog['carrier'] = null;
 
@@ -711,7 +750,7 @@ function buildGroundPlaneModels() {
 	const plane = 'XZ';
 	const ground = {
 		...generateRectangle([-1, 0, -len + blockLength], len, len - blockLength, plane),
-		...theme.road
+		...(customMode ? volcanoTheme.volcano : theme.road)
 	};
 	const grassStrips = [
 		//start strip
@@ -719,7 +758,7 @@ function buildGroundPlaneModels() {
 		//middle strip
 		{
 			...generateRectangle([-1, 0.002, -blockLength * Math.floor(noOfBlocks / 2)], 2, blockLength, plane),
-			...theme.ground
+			...(customMode ? volcanoTheme.steam : theme.ground)
 		}
 	];
 	const riverLen = blockLength * (Math.floor(noOfBlocks / 2) - 1);
@@ -727,7 +766,7 @@ function buildGroundPlaneModels() {
 	const river = {
 		type: 'river',
 		...generateRectangle(riverTopLeft, 2, riverLen, plane),
-		...theme.river,
+		...(customMode ? volcanoTheme.lava : theme.river),
 		bounds: { x: riverTopLeft[0], y: riverTopLeft[1], z: riverTopLeft[2], w: len }
 	};
 	return [ground, ...grassStrips, river];
@@ -750,12 +789,17 @@ function generateLandingBlocks() {
 		const bounds = { x, y, z, w };
 		if (i % 2 === 0) {
 			const cuboid = generateCuboid([x, h, z], w, h, d);
-			blocks.push({ type: 'landingBlockGreen', ...cuboid, ...theme.ground, bounds });
+			blocks.push({
+				type: 'landingBlockGreen',
+				...cuboid,
+				...(customMode ? volcanoTheme.steam : theme.ground),
+				bounds
+			});
 		} else {
 			blocks.push({
 				type: 'landingBlockYellow',
 				...generateRectangle([x, y, z], w, d, 'XZ'),
-				...theme.landingPad,
+				...(customMode ? volcanoTheme.ash : theme.landingPad),
 				bounds,
 				captured: false
 			});
@@ -768,7 +812,7 @@ function generateLandingBlocks() {
 
 function generateCars(lane, direction, themeOption) {
 	if (!themeOption) {
-		themeOption = theme.random();
+		themeOption = customMode ? volcanoTheme.magma : theme.random();
 	}
 	if (lane < 1) {
 		throw new Error('Invalid lane number');
@@ -798,7 +842,7 @@ function generateCars(lane, direction, themeOption) {
 
 function generateWood(lane, direction, themeOption) {
 	if (!themeOption) {
-		themeOption = theme.wood;
+		themeOption = customMode ? volcanoTheme.magma : theme.wood;
 	}
 	if (lane < 1) {
 		throw new Error('Invalid lane number');
@@ -828,7 +872,7 @@ function generateWood(lane, direction, themeOption) {
 
 function generateTurtle(lane, direction, themeOption) {
 	if (!themeOption) {
-		themeOption = theme.turtle;
+		themeOption = customMode ? volcanoTheme.ash : theme.turtle;
 	}
 	if (lane < 1) {
 		throw new Error('Invalid lane number');
