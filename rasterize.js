@@ -40,7 +40,7 @@ let blockLength = len / noOfBlocks;
 
 let currentFrogIndex = -1;
 let laneMapping = {};
-const frogStartXZ = [-0.5 * blockLength, 0.01, -blockLength];
+const frogStartXZ = [-0.5 * blockLength, 0.03, -blockLength];
 let requestAnimationFrameLoopEnabled = true;
 let score = 0;
 const livesSpan = document.querySelector('#livesSpan');
@@ -365,7 +365,6 @@ function renderModels() {
 		frogData.translation
 	);
 	const frogsLane = Math.abs(Math.ceil(currFrogPosition[2] / blockLength + (currFrogPosition[2] % blockLength)) + 1);
-
 	// render each triangle set
 	var currSet; // the tri set and its material properties
 	for (var whichTriSet = 0; whichTriSet < numTriangleSets; whichTriSet++) {
@@ -376,12 +375,20 @@ function renderModels() {
 				let step = -direction * laneSpeed[lane];
 				if (isOutOfBounds(currSet.bounds.x + currSet.bounds.w + step)) {
 					step = currSet.bounds.x > 0 ? -len : len;
+					if (frogData['carrier'] === whichTriSet) {
+						resetFrog(true);
+					}
 				}
 				vec3.add(currSet.translation, currSet.translation, [step, 0, 0]);
 				currSet.bounds.x += step;
+
+				if (frogData['carrier'] === whichTriSet) {
+					vec3.add(frogData.translation, frogData.translation, [step, 0, 0]);
+					frogData.bounds.x += step;
+				}
 			}
 			//check for collision with frog after taking the step
-			if (lane === frogsLane || (lane > noOfBlocks - 3 && frogsLane > noOfBlocks - 3)) {
+			if (lane === frogsLane) {
 				const collided = collisionDetected(
 					currFrogPosition[0],
 					frogData.bounds.w,
@@ -390,20 +397,19 @@ function renderModels() {
 					direction
 				);
 				if (collided) {
-					console.log(`Collision in lane ${frogsLane} with a ${type} and #${whichTriSet}`);
 					switch (type) {
-						case 'river':
-							break;
-						case 'landingBlockGreen':
-							break;
-						case 'landingBlockYellow':
-							break;
-						case 'car':
-							break;
 						case 'wood':
+							frogData['carrier'] = whichTriSet;
+						case 'turtle':
+							frogData['carrier'] = whichTriSet;
+							break;
+						case 'river':
+						case 'landingBlockGreen':
+						case 'car':
+							console.log(`Collision in lane ${frogsLane} with a ${type} and #${whichTriSet}`);
+							resetFrog(true);
 							break;
 					}
-					resetFrog(true);
 				}
 			}
 		}
@@ -435,6 +441,7 @@ function resetFrog(reduceLife) {
 		z: frogStartXZ[2],
 		w: blockLength
 	};
+	inputTriangles[currentFrogIndex]['carrier'] = null;
 	console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
 	if (reduceLife) {
 		fail.play();
