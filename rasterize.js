@@ -316,6 +316,19 @@ function renderModels() {
 	var pvMatrix = mat4.create(); // hand * proj * view matrices
 	var pvmMatrix = mat4.create(); // hand * proj * view * model matrices
 
+	//check for all landings filled case
+	if (laneMapping['landingBlockYellow']) {
+		const allLandingBlocksCaptured = laneMapping.landingBlockYellow.reduce((res, modelNo) => {
+			console.log(modelNo, 'captured', inputTriangles[modelNo]['captured']);
+			return inputTriangles[modelNo].type === 'landingBlockYellow' && inputTriangles[modelNo]['captured'] && res;
+		}, true);
+		console.log({ allLandingBlocksCaptured });
+		if (allLandingBlocksCaptured) {
+			requestAnimationFrameLoopEnabled = false;
+			alert('Congratulations!!! You win :)');
+		}
+	}
+
 	if (requestAnimationFrameLoopEnabled) {
 		requestAnimationFrameLoopEnabled = true;
 		window.requestAnimationFrame(renderModels);
@@ -346,27 +359,38 @@ function renderModels() {
 		currSet = inputTriangles[whichTriSet];
 		if (currSet.type) {
 			const { type, lane, direction } = currSet;
-			if (type !== 'frog' && type !== 'landingBlock' && type !== 'river') {
+			if (type !== 'frog' && !type.startsWith('landingBlock') && type !== 'river') {
 				let step = -direction * laneSpeed[lane];
 				if (isOutOfBounds(currSet.bounds.x + currSet.bounds.w + step)) {
 					step = currSet.bounds.x > 0 ? -len : len;
 				}
 				vec3.add(currSet.translation, currSet.translation, [step, 0, 0]);
 				currSet.bounds.x += step;
-
-				//check for collision with frog after taking the step
-				if (lane === frogsLane) {
-					const collided = collisionDetected(
-						currFrogPosition[0],
-						frogData.bounds.w,
-						currSet.bounds.x,
-						currSet.bounds.w,
-						direction
-					);
-					if (collided) {
-						console.log(`Collision in lane ${frogsLane} with model# ${whichTriSet}`);
-						resetFrogAndReduceLife();
+			}
+			//check for collision with frog after taking the step
+			if (lane === frogsLane || (lane > noOfBlocks - 3 && frogsLane > noOfBlocks - 3)) {
+				const collided = collisionDetected(
+					currFrogPosition[0],
+					frogData.bounds.w,
+					currSet.bounds.x,
+					currSet.bounds.w,
+					direction
+				);
+				if (collided) {
+					console.log(`Collision in lane ${frogsLane} with a ${type} and #${whichTriSet}`);
+					switch (type) {
+						case 'river':
+							break;
+						case 'landingBlockGreen':
+							break;
+						case 'landingBlockYellow':
+							break;
+						case 'car':
+							break;
+						case 'wood':
+							break;
 					}
+					resetFrog(true);
 				}
 			}
 		}
@@ -388,7 +412,7 @@ function renderModels() {
 	} // end for each triangle set
 } // end render model
 
-function resetFrogAndReduceLife() {
+function resetFrog(reduceLife) {
 	inputTriangles[currentFrogIndex].translation = vec3.create();
 	inputTriangles[currentFrogIndex].bounds = {
 		x: frogStartXZ[0],
@@ -397,7 +421,9 @@ function resetFrogAndReduceLife() {
 		w: blockLength
 	};
 	console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
-	inputTriangles[currentFrogIndex].lives -= 1;
+	if (reduceLife) {
+		inputTriangles[currentFrogIndex].lives -= 1;
+	}
 	console.log('remaining lives after', inputTriangles[currentFrogIndex].lives);
 	if (inputTriangles[currentFrogIndex].lives <= 0) {
 		requestAnimationFrameLoopEnabled = false;
@@ -422,6 +448,41 @@ function handleKeyDown(event) {
 			vec3.add(currentFrog.translation, currentFrog.translation, [0, 0, -blockLength]);
 			break;
 	} // end switch
+
+	const { laneNumber, position } = getLaneAndPosition(currentFrogIndex);
+	if (laneMapping['landingBlockGreen']) {
+		for (let i = 0; i < laneMapping['landingBlockGreen'].length; i++) {
+			const modelIndex = laneMapping['landingBlockGreen'][i];
+			const greenBlock = inputTriangles[modelIndex];
+			const gbLP = getLaneAndPosition(modelIndex);
+			if (
+				laneNumber > noOfBlocks - 3 &&
+				collisionDetected(position[0], currentFrog.bounds.w, gbLP.position[0], greenBlock.bounds.w)
+			) {
+				resetFrog(true);
+				break;
+			}
+		}
+	}
+
+	if (laneMapping['landingBlockYellow']) {
+		for (let i = 0; i < laneMapping['landingBlockYellow'].length; i++) {
+			const modelIndex = laneMapping['landingBlockYellow'][i];
+			const greenBlock = inputTriangles[modelIndex];
+			const gbLP = getLaneAndPosition(modelIndex);
+			if (
+				!greenBlock.captured &&
+				laneNumber > noOfBlocks - 3 &&
+				collisionDetected(position[0], currentFrog.bounds.w, gbLP.position[0], greenBlock.bounds.w)
+			) {
+				console.log('reached landing spot');
+				inputTriangles[laneMapping['landingBlockYellow'][i]].material = theme.frog.material;
+				inputTriangles[laneMapping['landingBlockYellow'][i]].captured = true;
+				resetFrog(false);
+				break;
+			}
+		}
+	}
 } // end handleKeyDown
 
 function generateRectangle(topLeft, width, height, plane) {
@@ -593,17 +654,18 @@ function generateLandingBlocks() {
 		const h = blockLength;
 		const d = 2 * blockLength;
 		const z = -len;
-		const y = i % 2 === 0 ? h : 0.01;
+		const y = i % 2 === 0 ? h : 0.001;
 		const bounds = { x, y, z, w };
 		if (i % 2 === 0) {
 			const cuboid = generateCuboid([x, h, z], w, h, d);
-			blocks.push({ ...cuboid, ...theme.ground, bounds });
+			blocks.push({ type: 'landingBlockGreen', ...cuboid, ...theme.ground, bounds });
 		} else {
 			blocks.push({
-				type: 'landingBlock',
+				type: 'landingBlockYellow',
 				...generateRectangle([x, y, z], w, d, 'XZ'),
 				...theme.landingPad,
-				bounds
+				bounds,
+				captured: false
 			});
 		}
 		if (reach < 1) x += w;
@@ -621,9 +683,9 @@ function generateCars(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const cars = [];
-	for (let i = 0, x = direction; i < randInt(2, 5); i++) {
-		const w = randInt(blockLength, 1.5 * blockLength);
-		const h = blockLength * Math.random();
+	for (let i = 0, x = direction; i < randInt(1, 3); i++) {
+		const w = blockLength * randFloat(1, 2);
+		const h = blockLength * randFloat(0.2, 1);
 		const d = blockLength;
 		cars.push({
 			type: 'cars',
@@ -651,7 +713,7 @@ function generateWood(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const woods = [];
-	for (let i = 0, x = direction; i < randInt(1, 3); i++) {
+	for (let i = 0, x = direction; i < randInt(1, 2); i++) {
 		const w = blockLength * 2;
 		const h = blockLength / 5;
 		const d = blockLength * 0.9;
@@ -691,11 +753,11 @@ function isOutOfBounds(v) {
 function collisionDetected(x1, w1, x2, w2, direction = -1) {
 	const length1 = x1 + w1;
 	const length2 = x2 + w2;
-	return direction < 0 ? x1 <= length2 && x1 >= x2 : length1 >= x2 && x2 >= x1;
+	return (x1 <= length2 && x1 >= x2) || (length1 >= x2 && x2 >= x1);
 }
 
 function getLaneAndPosition(modelIndex) {
-	const { bounds } = inputTriangles[modelIndex];
+	const { bounds, translation } = inputTriangles[modelIndex];
 	const position = vec3.add(vec3.create(), vec3.fromValues(bounds.x, bounds.y, bounds.z), translation);
 	const laneNumber = Math.abs(Math.ceil(position[2] / blockLength + (position[2] % blockLength)) + 1);
 	return { position, laneNumber };
