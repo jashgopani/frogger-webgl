@@ -9,13 +9,13 @@
 -   [x] Add perspective
 -   [x] Add generators for primitives
 -   [x] Use primitive generators for modelling
--   [ ] Prepare static scene complete
--   [ ] Add user interaction and apply transformations to moving objects
--   [ ] Add collision detection and other rules using bounding box
--   [ ] Add sound effects
+-   [x] Prepare static scene complete
+-   [x] Add user interaction and apply transformations to moving objects
+-   [x] Add collision detection and other rules using bounding box
+-   [x] Add sound effects
 
 ### P1
 
 -   [ ] Add textures
--   [ ] Score calculation
+-   [x] Score calculation
 -   [ ] Make your own part

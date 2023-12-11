@@ -476,6 +476,7 @@ function handleKeyDown(event) {
 			jump.play();
 			break;
 	} // end switch
+	// currentFrog['carrier'] = null;
 
 	const { laneNumber, position } = getLaneAndPosition(currentFrogIndex);
 	if (laneMapping['landingBlockGreen']) {
@@ -513,6 +514,68 @@ function handleKeyDown(event) {
 				break;
 			}
 		}
+	}
+
+	//check for accidents
+	const frogData = inputTriangles[currentFrogIndex];
+	const currFrogPosition = vec3.add(
+		vec3.create(),
+		vec3.fromValues(frogData.bounds.x, frogData.bounds.y, frogData.bounds.z),
+		frogData.translation
+	);
+	const frogsLane = Math.abs(Math.ceil(currFrogPosition[2] / blockLength + (currFrogPosition[2] % blockLength)) + 1);
+
+	var currSet; // the tri set and its material properties
+	for (var whichTriSet = 0; whichTriSet < numTriangleSets; whichTriSet++) {
+		currSet = inputTriangles[whichTriSet];
+		if (currSet.type) {
+			const { type, lane, direction } = currSet;
+			if (type !== 'frog' && !type.startsWith('landingBlock') && type !== 'river') {
+				let step = -direction * laneSpeed[lane];
+				if (isOutOfBounds(currSet.bounds.x + currSet.bounds.w + step)) {
+					step = currSet.bounds.x > 0 ? -len : len;
+					if (frogData['carrier'] === whichTriSet) {
+						resetFrog(true);
+					}
+				}
+				vec3.add(currSet.translation, currSet.translation, [step, 0, 0]);
+				currSet.bounds.x += step;
+
+				if (frogData['carrier'] === whichTriSet) {
+					vec3.add(frogData.translation, frogData.translation, [step, 0, 0]);
+					frogData.bounds.x += step;
+				}
+			}
+			//check for collision with frog after taking the step
+			if (lane === frogsLane) {
+				const collided = collisionDetected(
+					currFrogPosition[0],
+					frogData.bounds.w,
+					currSet.bounds.x,
+					currSet.bounds.w,
+					direction
+				);
+				if (collided) {
+					switch (type) {
+						case 'wood':
+							frogData['carrier'] = whichTriSet;
+						case 'turtle':
+							frogData['carrier'] = whichTriSet;
+							break;
+						case 'river':
+						case 'landingBlockGreen':
+						case 'car':
+							console.log(`Collision in lane ${frogsLane} with a ${type} and #${whichTriSet}`);
+							resetFrog(true);
+							break;
+					}
+				}
+			}
+		}
+	}
+	console.log(frogsLane);
+	if (frogsLane >= 7 && frogsLane <= 12 && !frogData['carrier']) {
+		resetFrog(true);
 	}
 } // end handleKeyDown
 
@@ -555,11 +618,11 @@ function getSceneModels() {
 		...generateCars(3, 1),
 		...generateCars(4, -1),
 		...generateCars(5, 1),
-		...generateTurtle(Math.ceil(0.5 * noOfBlocks - 1), -1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks - 1), -1, theme.turtle),
 		...generateWood(Math.ceil(0.5 * noOfBlocks), -1),
-		...generateWood(Math.ceil(0.5 * noOfBlocks + 1), 1),
-		...generateTurtle(Math.ceil(0.5 * noOfBlocks + 2), -1),
-		...generateWood(Math.ceil(0.5 * noOfBlocks + 3), 1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 1), 1, theme.turtle),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 2), -1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks + 3), 1, theme.turtle),
 		generateFrog()
 	];
 }
