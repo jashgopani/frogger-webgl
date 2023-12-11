@@ -562,9 +562,7 @@ function handleKeyDown(event) {
 						case 'turtle':
 							frogData['carrier'] = whichTriSet;
 							break;
-						case 'river':
-						case 'landingBlockGreen':
-						case 'car':
+						default:
 							console.log(`Collision in lane ${frogsLane} with a ${type} and #${whichTriSet}`);
 							resetFrog(true);
 							break;
