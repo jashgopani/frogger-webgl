@@ -33,7 +33,7 @@ var Up = vec3.clone(defaultUp); // view up vector in world space
 
 const noOfBlocks = 15;
 const laneSpeed = Array(noOfBlocks)
-	.fill(0.1 + Math.random())
+	.fill(randFloat(0.1, 0.5))
 	.map((v, i) => v * (i + 1) * 0.001);
 const len = 2;
 let blockLength = len / noOfBlocks;
@@ -346,7 +346,7 @@ function renderModels() {
 		currSet = inputTriangles[whichTriSet];
 		if (currSet.type) {
 			const { type, lane, direction } = currSet;
-			if (type !== 'frog' && type !== 'landingBlocks') {
+			if (type !== 'frog' && type !== 'landingBlock' && type !== 'river') {
 				let step = -direction * laneSpeed[lane];
 				if (isOutOfBounds(currSet.bounds.x + currSet.bounds.w + step)) {
 					step = currSet.bounds.x > 0 ? -len : len;
@@ -365,19 +365,7 @@ function renderModels() {
 					);
 					if (collided) {
 						console.log(`Collision in lane ${frogsLane} with model# ${whichTriSet}`);
-						inputTriangles[currentFrogIndex].translation = vec3.create();
-						inputTriangles[currentFrogIndex].bounds = {
-							x: frogStartXZ[0],
-							y: frogStartXZ[1],
-							z: frogStartXZ[2],
-							w: blockLength
-						};
-						console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
-						inputTriangles[currentFrogIndex].lives -= 1;
-						console.log('remaining lives after', inputTriangles[currentFrogIndex].lives);
-						if (inputTriangles[currentFrogIndex].lives <= 0) {
-							requestAnimationFrameLoopEnabled = false;
-						}
+						resetFrogAndReduceLife();
 					}
 				}
 			}
@@ -400,6 +388,22 @@ function renderModels() {
 	} // end for each triangle set
 } // end render model
 
+function resetFrogAndReduceLife() {
+	inputTriangles[currentFrogIndex].translation = vec3.create();
+	inputTriangles[currentFrogIndex].bounds = {
+		x: frogStartXZ[0],
+		y: frogStartXZ[1],
+		z: frogStartXZ[2],
+		w: blockLength
+	};
+	console.log('remaining lives', inputTriangles[currentFrogIndex].lives);
+	inputTriangles[currentFrogIndex].lives -= 1;
+	console.log('remaining lives after', inputTriangles[currentFrogIndex].lives);
+	if (inputTriangles[currentFrogIndex].lives <= 0) {
+		requestAnimationFrameLoopEnabled = false;
+	}
+}
+
 // does stuff when keys are pressed
 function handleKeyDown(event) {
 	let currentFrog = inputTriangles[currentFrogIndex];
@@ -417,8 +421,6 @@ function handleKeyDown(event) {
 		case 'ArrowUp':
 			vec3.add(currentFrog.translation, currentFrog.translation, [0, 0, -blockLength]);
 			break;
-		default:
-			console.log(`Unhandled key event: ${event.key}`);
 	} // end switch
 } // end handleKeyDown
 
@@ -461,6 +463,7 @@ function getSceneModels() {
 		...generateCars(3, 1),
 		...generateCars(4, -1),
 		...generateCars(5, 1),
+		...generateWood(Math.ceil(0.5 * noOfBlocks - 1), -1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks), -1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks + 1), 1),
 		...generateWood(Math.ceil(0.5 * noOfBlocks + 2), -1),
@@ -567,9 +570,12 @@ function buildGroundPlaneModels() {
 		}
 	];
 	const riverLen = blockLength * (Math.floor(noOfBlocks / 2) - 1);
+	const riverTopLeft = [-1, 0.002, -len + 2 * blockLength];
 	const river = {
-		...generateRectangle([-1, 0.002, -len + 2 * blockLength], 2, riverLen, plane),
-		...theme.river
+		type: 'river',
+		...generateRectangle(riverTopLeft, 2, riverLen, plane),
+		...theme.river,
+		bounds: { x: riverTopLeft[0], y: riverTopLeft[1], z: riverTopLeft[2], w: len }
 	};
 	return [ground, ...grassStrips, river];
 }
@@ -615,8 +621,8 @@ function generateCars(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const cars = [];
-	for (let i = 0, x = direction; i < 4; i++) {
-		const w = blockLength;
+	for (let i = 0, x = direction; i < randInt(2, 5); i++) {
+		const w = randInt(blockLength, 1.5 * blockLength);
 		const h = blockLength * Math.random();
 		const d = blockLength;
 		cars.push({
@@ -628,9 +634,9 @@ function generateCars(lane, direction, themeOption) {
 			direction
 		});
 		if (direction > 0) {
-			x += w + blockLength;
+			x += w + randInt(blockLength, 4 * blockLength);
 		} else {
-			x -= w + blockLength;
+			x -= w + randInt(blockLength, 4 * blockLength);
 		}
 	}
 	return [...cars];
@@ -645,7 +651,7 @@ function generateWood(lane, direction, themeOption) {
 	}
 	const z = -blockLength - lane * blockLength;
 	const woods = [];
-	for (let i = 0, x = direction; i < 2; i++) {
+	for (let i = 0, x = direction; i < randInt(1, 3); i++) {
 		const w = blockLength * 2;
 		const h = blockLength / 5;
 		const d = blockLength * 0.9;
@@ -658,9 +664,9 @@ function generateWood(lane, direction, themeOption) {
 			direction
 		});
 		if (direction > 0) {
-			x += w + 1.5 * blockLength;
+			x += w + randInt(blockLength, 4 * blockLength);
 		} else {
-			x -= w + 1.5 * blockLength;
+			x -= w + randInt(blockLength, 1.5 * blockLength);
 		}
 	}
 	return [...woods];
@@ -686,6 +692,21 @@ function collisionDetected(x1, w1, x2, w2, direction = -1) {
 	const length1 = x1 + w1;
 	const length2 = x2 + w2;
 	return direction < 0 ? x1 <= length2 && x1 >= x2 : length1 >= x2 && x2 >= x1;
+}
+
+function getLaneAndPosition(modelIndex) {
+	const { bounds } = inputTriangles[modelIndex];
+	const position = vec3.add(vec3.create(), vec3.fromValues(bounds.x, bounds.y, bounds.z), translation);
+	const laneNumber = Math.abs(Math.ceil(position[2] / blockLength + (position[2] % blockLength)) + 1);
+	return { position, laneNumber };
+}
+
+function randInt(min, max) {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randFloat(min, max) {
+	return Math.random() * (max - min) + min;
 }
 
 function main() {
