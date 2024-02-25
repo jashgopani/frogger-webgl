@@ -1,6 +1,7 @@
+
 # :frog: Frogger Game using WebGL - Jash Gopani
 
-# Todo List
+# Features
 
 ### P0
 
