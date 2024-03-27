@@ -1,7 +1,7 @@
 
 # :frog: Frogger Game using WebGL - Jash Gopani
 
-This project is a WebGL implementation of the classic arcade game Frogger. It was developed by Jash Gopani as part of a computer graphics course. The game aims to recreate the familiar Frogger experience in a modern web environment, leveraging WebGL for rendering and user interaction.
+This project is a WebGL implementation of the classic arcade game Frogger. It was developed as part of a CSC 561 - computer graphics course at NCSU. The game aims to recreate the familiar Frogger experience in a modern web environment, leveraging WebGL for rendering and user interaction.
 
 ## Features
 
